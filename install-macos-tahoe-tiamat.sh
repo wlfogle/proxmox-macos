@@ -81,8 +81,8 @@ launch() {
     log "[1/5] Preflight..."
     osx-next-cli preflight
 
-    log "[2/5] Downloading OpenCore + macOS $MACOS_VERSION recovery..."
-    osx-next-cli download --macos "$MACOS_VERSION"
+    log "[2/5] Skipping download — ISOs already in $ISO_DIR"
+    # opencore-osx-proxmox-vm.iso and tahoe-recovery.iso pre-staged manually
 
     log "[3/5] Creating VM $VMID..."
     osx-next-cli apply --execute    \
