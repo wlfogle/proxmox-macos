@@ -21,6 +21,11 @@ STORAGE="local-lvm"
 ISO_DIR="/var/lib/vz/template/iso"
 BRIDGE="vmbr0"
 
+# ── ISO filenames ────────────────────────────────────────────────────────────
+# Prefer the full installer ISO over recovery-only if present
+FULL_ISO="macOS_Tahoe_26.5.1.iso"
+RECOVERY_ISO="tahoe-recovery.iso"
+
 # ── RX 580 PCI addresses (confirmed via lspci on tiamat) ─────────────────────
 GPU_PCI="0000:09:00.0"   # 1002:67df  Ellesmere RX 580
 GPU_AUDIO="0000:09:00.1" # 1002:aaf0  Ellesmere HDMI Audio
@@ -74,6 +79,29 @@ setup_runtime() {
     pip install -e "$REPO_DIR"                             >>"$LOG_FILE" 2>&1 || die "dependency install failed"
 }
 
+# Resolve which installer ISO to use; sets INSTALLER_ISO global
+resolve_installer_iso() {
+    if [[ -f "$ISO_DIR/$FULL_ISO" ]]; then
+        INSTALLER_ISO="$FULL_ISO"
+        log "  [found] $FULL_ISO (full installer)"
+    elif [[ -f "$ISO_DIR/$RECOVERY_ISO" ]] || \
+         [[ -f "$ISO_DIR/${MACOS_VERSION}-recovery.img" ]] || \
+         [[ -f "$ISO_DIR/macOS_Tahoe_Recovery.iso" ]]; then
+        # Normalise recovery to expected name
+        if [[ ! -f "$ISO_DIR/$RECOVERY_ISO" ]]; then
+            local src
+            src=$(ls "$ISO_DIR/${MACOS_VERSION}-recovery.img" \
+                     "$ISO_DIR/macOS_Tahoe_Recovery.iso" 2>/dev/null | head -1)
+            ln -sf "$src" "$ISO_DIR/$RECOVERY_ISO"
+            log "  [symlink] $(basename "$src") → $RECOVERY_ISO"
+        fi
+        INSTALLER_ISO="$RECOVERY_ISO"
+        log "  [found] $RECOVERY_ISO (recovery only)"
+    else
+        INSTALLER_ISO=""
+    fi
+}
+
 check_isos() {
     local need_download=0
 
@@ -84,21 +112,9 @@ check_isos() {
         need_download=1
     fi
 
-    # Accept any of the known recovery filenames the tool or user may have placed
-    if [[ -f "$ISO_DIR/${MACOS_VERSION}-recovery.iso" ]] || \
-       [[ -f "$ISO_DIR/${MACOS_VERSION}-recovery.img" ]] || \
-       [[ -f "$ISO_DIR/macOS_Tahoe_Recovery.iso" ]]; then
-        log "  [found] ${MACOS_VERSION} recovery image"
-        # Normalise to the name the tool expects
-        if [[ ! -f "$ISO_DIR/${MACOS_VERSION}-recovery.iso" ]]; then
-            local src
-            src=$(ls "$ISO_DIR/${MACOS_VERSION}-recovery.img" \
-                     "$ISO_DIR/macOS_Tahoe_Recovery.iso" 2>/dev/null | head -1)
-            ln -sf "$src" "$ISO_DIR/${MACOS_VERSION}-recovery.iso"
-            log "  [symlink] $(basename "$src") → ${MACOS_VERSION}-recovery.iso"
-        fi
-    else
-        log "  [missing] ${MACOS_VERSION} recovery image — will download"
+    resolve_installer_iso
+    if [[ -z "$INSTALLER_ISO" ]]; then
+        log "  [missing] macOS installer ISO — will download"
         need_download=1
     fi
 
@@ -161,10 +177,9 @@ launch() {
     qm set "$VMID" --args "$QEMU_ARGS"
     # kvm64 prevents Proxmox injecting conflicting AMD KVM flags alongside our args
     qm set "$VMID" --cpu kvm64
-    # Attach recovery ISO as cdrom if not already attached
-    if ! grep -q 'ide2' /etc/pve/qemu-server/${VMID}.conf; then
-        qm set "$VMID" --ide2 "local:iso/${MACOS_VERSION}-recovery.iso,media=cdrom"
-    fi
+    # Attach installer ISO as cdrom (full installer preferred over recovery)
+    resolve_installer_iso
+    qm set "$VMID" --ide2 "local:iso/${INSTALLER_ISO},media=cdrom"
     # Boot: OpenCore (ide0) → recovery cdrom (ide2) → main disk (virtio0)
     qm set "$VMID" --boot order='ide0;ide2;virtio0'
     # Disable ballooning (required for macOS)
