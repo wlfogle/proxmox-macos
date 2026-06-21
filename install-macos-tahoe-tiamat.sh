@@ -74,6 +74,37 @@ setup_runtime() {
     pip install -e "$REPO_DIR"                             >>"$LOG_FILE" 2>&1 || die "dependency install failed"
 }
 
+check_isos() {
+    local need_download=0
+
+    if [[ -f "$ISO_DIR/opencore-osx-proxmox-vm.iso" ]]; then
+        log "  [found] opencore-osx-proxmox-vm.iso"
+    else
+        log "  [missing] opencore-osx-proxmox-vm.iso — will download"
+        need_download=1
+    fi
+
+    # Accept any of the known recovery filenames the tool or user may have placed
+    if [[ -f "$ISO_DIR/${MACOS_VERSION}-recovery.iso" ]] || \
+       [[ -f "$ISO_DIR/${MACOS_VERSION}-recovery.img" ]] || \
+       [[ -f "$ISO_DIR/macOS_Tahoe_Recovery.iso" ]]; then
+        log "  [found] ${MACOS_VERSION} recovery image"
+        # Normalise to the name the tool expects
+        if [[ ! -f "$ISO_DIR/${MACOS_VERSION}-recovery.iso" ]]; then
+            local src
+            src=$(ls "$ISO_DIR/${MACOS_VERSION}-recovery.img" \
+                     "$ISO_DIR/macOS_Tahoe_Recovery.iso" 2>/dev/null | head -1)
+            ln -sf "$src" "$ISO_DIR/${MACOS_VERSION}-recovery.iso"
+            log "  [symlink] $(basename "$src") → ${MACOS_VERSION}-recovery.iso"
+        fi
+    else
+        log "  [missing] ${MACOS_VERSION} recovery image — will download"
+        need_download=1
+    fi
+
+    return $need_download
+}
+
 launch() {
     # shellcheck source=/dev/null
     source "$VENV_DIR/bin/activate"
@@ -81,10 +112,19 @@ launch() {
     log "[1/5] Preflight..."
     osx-next-cli preflight
 
-    log "[2/5] Skipping download — ISOs already in $ISO_DIR"
-    # opencore-osx-proxmox-vm.iso and tahoe-recovery.iso pre-staged manually
+    log "[2/5] Checking ISOs in $ISO_DIR..."
+    if ! check_isos; then
+        log "  Downloading missing assets..."
+        osx-next-cli download --macos "$MACOS_VERSION"
+    else
+        log "  All ISOs present — skipping download."
+    fi
 
     log "[3/5] Creating VM $VMID..."
+    # The tool's recovery ISO stamping step may fail on ISO 9660 format images
+    # (it expects HFS+). The VM is still fully created — we catch that specific
+    # failure and continue if the VM exists.
+    set +e
     osx-next-cli apply --execute    \
         --vmid         "$VMID"      \
         --name         "$VM_NAME"   \
@@ -98,21 +138,37 @@ launch() {
         --smbios-model "MacPro7,1" \
         --apple-services            \
         --verbose-boot
+    APPLY_EXIT=$?
+    set -e
 
-    log "[4/5] Applying correct AMD args + RX 580 GPU passthrough..."
-    # Override CPU args (Cascadelake-Server + feature masking for Ryzen 3600)
+    if [[ $APPLY_EXIT -ne 0 ]]; then
+        if ! qm status "$VMID" &>/dev/null; then
+            die "VM $VMID was not created (apply exited $APPLY_EXIT). Check log: $LOG_FILE"
+        fi
+        log "  WARNING: apply exited $APPLY_EXIT (recovery ISO stamp failed — non-fatal)."
+        log "  VM $VMID exists — continuing with manual config."
+    fi
+
+    log "[4/5] Applying AMD args, recovery ISO, RX 580 GPU passthrough..."
+    # Override QEMU CPU args (Cascadelake-Server + feature masking for Ryzen 3600)
     qm set "$VMID" --args "$QEMU_ARGS"
-    # Ensure cpu: kvm64 so Proxmox doesn't inject conflicting AMD KVM flags
+    # kvm64 prevents Proxmox injecting conflicting AMD KVM flags alongside our args
     qm set "$VMID" --cpu kvm64
+    # Attach recovery ISO as cdrom if not already attached
+    if ! grep -q 'ide2' /etc/pve/qemu-server/${VMID}.conf; then
+        qm set "$VMID" --ide2 "local:iso/${MACOS_VERSION}-recovery.iso,media=cdrom"
+    fi
+    # Boot: OpenCore (ide0) → recovery cdrom (ide2) → main disk (virtio0)
+    qm set "$VMID" --boot order='ide0;ide2;virtio0'
     # Disable ballooning (required for macOS)
     qm set "$VMID" --balloon 0
-    # RX 580 GPU — pcie=1, rombar=1, primary GPU
+    # RX 580 GPU — pcie=1, rombar=1, x-vga=1 (primary GPU output)
     qm set "$VMID" --hostpci0 "${GPU_PCI},pcie=1,rombar=1,x-vga=1"
-    # RX 580 HDMI audio companion
+    # RX 580 HDMI audio companion device
     qm set "$VMID" --hostpci1 "${GPU_AUDIO},pcie=1"
-    # No virtual display once GPU is passed through
+    # No virtual display — all output goes through the physical RX 580
     qm set "$VMID" --vga none
-    # QEMU guest agent via ISA serial (correct transport for macOS)
+    # ISA serial is the correct QEMU guest agent transport for macOS
     qm set "$VMID" --agent enabled=1,type=isa
 
     log "[5/5] Starting VM $VMID..."
