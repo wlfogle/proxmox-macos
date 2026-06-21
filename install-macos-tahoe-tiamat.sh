@@ -121,32 +121,39 @@ launch() {
     fi
 
     log "[3/5] Creating VM $VMID..."
-    # The tool's recovery ISO stamping step may fail on ISO 9660 format images
-    # (it expects HFS+). The VM is still fully created — we catch that specific
-    # failure and continue if the VM exists.
-    set +e
-    osx-next-cli apply --execute    \
-        --vmid         "$VMID"      \
-        --name         "$VM_NAME"   \
-        --macos        "$MACOS_VERSION" \
-        --cores        "$CORES"     \
-        --memory       "$MEMORY"    \
-        --disk         "$DISK"      \
-        --storage      "$STORAGE"   \
-        --iso-dir      "$ISO_DIR"   \
-        --bridge       "$BRIDGE"    \
-        --smbios-model "MacPro7,1" \
-        --apple-services            \
-        --verbose-boot
-    APPLY_EXIT=$?
-    set -e
-
-    if [[ $APPLY_EXIT -ne 0 ]]; then
-        if ! qm status "$VMID" &>/dev/null; then
-            die "VM $VMID was not created (apply exited $APPLY_EXIT). Check log: $LOG_FILE"
+    if qm status "$VMID" &>/dev/null; then
+        log "  VM $VMID already exists — skipping creation, will re-apply config."
+        # Stop it so config changes can be applied cleanly
+        if qm status "$VMID" | grep -q running; then
+            log "  Stopping VM $VMID..."
+            qm stop "$VMID"
+            sleep 3
         fi
-        log "  WARNING: apply exited $APPLY_EXIT (recovery ISO stamp failed — non-fatal)."
-        log "  VM $VMID exists — continuing with manual config."
+    else
+        # The tool's recovery ISO stamping step may fail on ISO 9660 images
+        # (it expects HFS+). VM is still fully created — continue if it exists.
+        set +e
+        osx-next-cli apply --execute    \
+            --vmid         "$VMID"      \
+            --name         "$VM_NAME"   \
+            --macos        "$MACOS_VERSION" \
+            --cores        "$CORES"     \
+            --memory       "$MEMORY"    \
+            --disk         "$DISK"      \
+            --storage      "$STORAGE"   \
+            --iso-dir      "$ISO_DIR"   \
+            --bridge       "$BRIDGE"    \
+            --smbios-model "MacPro7,1" \
+            --apple-services            \
+            --verbose-boot
+        APPLY_EXIT=$?
+        set -e
+        if [[ $APPLY_EXIT -ne 0 ]]; then
+            qm status "$VMID" &>/dev/null \
+                || die "VM $VMID was not created (apply exited $APPLY_EXIT). Check: $LOG_FILE"
+            log "  WARNING: apply exited $APPLY_EXIT (recovery ISO stamp — non-fatal)."
+            log "  VM $VMID exists — continuing."
+        fi
     fi
 
     log "[4/5] Applying AMD args + install-phase display config..."
