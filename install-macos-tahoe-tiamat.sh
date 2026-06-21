@@ -82,7 +82,7 @@ launch() {
     osx-next-cli preflight
 
     log "[2/5] Downloading OpenCore + macOS $MACOS_VERSION recovery..."
-    osx-next-cli download --macos "$MACOS_VERSION" --iso-dir "$ISO_DIR"
+    osx-next-cli download --macos "$MACOS_VERSION"
 
     log "[3/5] Creating VM $VMID..."
     osx-next-cli apply --execute    \
