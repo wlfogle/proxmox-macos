@@ -149,7 +149,7 @@ launch() {
         log "  VM $VMID exists — continuing with manual config."
     fi
 
-    log "[4/5] Applying AMD args, recovery ISO, RX 580 GPU passthrough..."
+    log "[4/5] Applying AMD args + install-phase display config..."
     # Override QEMU CPU args (Cascadelake-Server + feature masking for Ryzen 3600)
     qm set "$VMID" --args "$QEMU_ARGS"
     # kvm64 prevents Proxmox injecting conflicting AMD KVM flags alongside our args
@@ -162,12 +162,10 @@ launch() {
     qm set "$VMID" --boot order='ide0;ide2;virtio0'
     # Disable ballooning (required for macOS)
     qm set "$VMID" --balloon 0
-    # RX 580 GPU — pcie=1, rombar=1, x-vga=1 (primary GPU output)
-    qm set "$VMID" --hostpci0 "${GPU_PCI},pcie=1,rombar=1,x-vga=1"
-    # RX 580 HDMI audio companion device
-    qm set "$VMID" --hostpci1 "${GPU_AUDIO},pcie=1"
-    # No virtual display — all output goes through the physical RX 580
-    qm set "$VMID" --vga none
+    # INSTALL PHASE: virtual display so noVNC works (headless / no physical monitor)
+    # GPU passthrough is added via enable-gpu-passthrough() AFTER macOS is installed
+    # and NomMachine is running inside the VM.
+    qm set "$VMID" --vga vmware,memory=256
     # ISA serial is the correct QEMU guest agent transport for macOS
     qm set "$VMID" --agent enabled=1,type=isa
 
@@ -176,19 +174,34 @@ launch() {
 
     log ""
     log "══════════════════════════════════════════════════════"
-    log " VM $VMID started. Connect monitor to RX 580 physically."
+    log " VM $VMID started — use Proxmox noVNC console to interact."
     log ""
-    log " INSTALL STEPS:"
+    log " PHASE 1 — INSTALL (noVNC in Proxmox web UI):"
     log "  1. OpenCore picker → select macOS Base System"
     log "  2. Disk Utility → Erase VirtIO disk → APFS / GUID"
-    log "  3. Install macOS Tahoe (downloads ~15 GB from Apple)"
+    log "  3. Install macOS Tahoe (~15 GB download from Apple)"
     log "  4. VM reboots 2-3x automatically — normal"
     log "  5. 'Less than 1 minute' hang = APFS sealing, wait 90+ min"
     log ""
-    log " POST-INSTALL (on macOS, via Terminal):"
-    log "  Mount EFI: open LongQT-OpenCore on Desktop → Mount_EFI.command"
-    log "  Copy EFI:  cp -R /Volumes/LongQT-OpenCore/EFI_RELEASE/EFI /Volumes/EFI/"
+    log " PHASE 2 — POST-INSTALL (inside macOS):"
+    log "  a. Mount EFI: open LongQT-OpenCore on Desktop → Mount_EFI.command"
+    log "  b. Copy EFI: cp -R /Volumes/LongQT-OpenCore/EFI_RELEASE/EFI /Volumes/EFI/"
+    log "  c. Install NomMachine: https://www.nomachine.com/download/download&id=1"
+    log "  d. Once NomMachine is running, switch to GPU passthrough:"
+    log "     bash $0 --enable-gpu"
     log "══════════════════════════════════════════════════════"
+}
+
+enable_gpu_passthrough() {
+    require_root
+    log "Switching VM $VMID to RX 580 GPU passthrough..."
+    qm stop "$VMID" || true
+    sleep 3
+    qm set "$VMID" --hostpci0 "${GPU_PCI},pcie=1,rombar=1,x-vga=1"
+    qm set "$VMID" --hostpci1 "${GPU_AUDIO},pcie=1"
+    qm set "$VMID" --vga none
+    qm start "$VMID"
+    log "GPU passthrough enabled. NomMachine/Moonlight will use the RX 580."
 }
 
 nuke_stale() {
@@ -196,12 +209,19 @@ nuke_stale() {
 }
 
 main() {
-    require_root
-    nuke_stale
-    install_dependencies
-    sync_repo
-    setup_runtime
-    launch
+    case "${1:-}" in
+        --enable-gpu)
+            enable_gpu_passthrough
+            ;;
+        *)
+            require_root
+            nuke_stale
+            install_dependencies
+            sync_repo
+            setup_runtime
+            launch
+            ;;
+    esac
 }
 
 main "$@"
