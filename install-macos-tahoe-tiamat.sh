@@ -26,6 +26,14 @@ BRIDGE="vmbr0"
 FULL_ISO="macOS_Tahoe_26.5.1.iso"
 RECOVERY_ISO="tahoe-recovery.iso"
 
+# ── macOS recovery installer staging (self-heal a dead OpenCore picker) ───────
+# board Mac-27AD2F918AE68F61 == MacPro7,1; with os=latest Apple serves Tahoe (26)
+RECOVERY_BOARD_ID="Mac-27AD2F918AE68F61"
+MACREC_PY="/root/OSX-PROXMOX/tools/macrecovery/macrecovery.py"
+MACREC_URL="https://raw.githubusercontent.com/acidanthera/OpenCorePkg/master/Utilities/macrecovery/macrecovery.py"
+RECOVERY_DIR="$ISO_DIR/tahoe-recovery"
+RECOVERY_IMG="$ISO_DIR/tahoe-BaseSystem.img"
+
 # ── RX 580 PCI addresses (confirmed via lspci on tiamat) ─────────────────────
 GPU_PCI="0000:09:00.0"   # 1002:67df  Ellesmere RX 580
 GPU_AUDIO="0000:09:00.1" # 1002:aaf0  Ellesmere HDMI Audio
@@ -226,6 +234,75 @@ enable_gpu_passthrough() {
     log "GPU passthrough enabled. NomMachine/Moonlight will use the RX 580."
 }
 
+# Download a genuine macOS Tahoe recovery installer and attach it to the VM so
+# the OpenCore picker has a "macOS Base System" entry to boot. Idempotent and
+# safe to re-run. Use this if the picker only shows OPENCORE/UEFI Shell/Reset
+# NVRAM (i.e. the installer media was deleted) — selecting OpenCore then "does
+# nothing" because there is no OS and no installer to boot.
+stage_recovery_installer() {
+    require_root
+    log "Staging macOS Tahoe recovery installer for VM $VMID..."
+
+    # Ensure macrecovery.py is available (fetch from OpenCorePkg if missing).
+    if [[ ! -f "$MACREC_PY" ]]; then
+        MACREC_PY="/root/macrecovery.py"
+        if [[ ! -f "$MACREC_PY" ]]; then
+            log "  Fetching macrecovery.py..."
+            curl -fsSL "$MACREC_URL" -o "$MACREC_PY" || die "Failed to fetch macrecovery.py"
+        fi
+    fi
+
+    # Download + convert the BaseSystem only if we don't already have it.
+    if [[ -f "$RECOVERY_IMG" ]] && [[ "$(stat -c%s "$RECOVERY_IMG")" -gt 500000000 ]]; then
+        log "  Recovery image already present: $RECOVERY_IMG"
+    else
+        mkdir -p "$RECOVERY_DIR"
+        log "  Downloading Tahoe recovery (board=$RECOVERY_BOARD_ID os=latest)..."
+        python3 "$MACREC_PY" -b "$RECOVERY_BOARD_ID" -m 00000000000000000 -os latest \
+            -o "$RECOVERY_DIR" download || die "macrecovery download failed"
+        local dmg
+        dmg="$(find "$RECOVERY_DIR" -iname 'BaseSystem.dmg' | head -1)"
+        [[ -n "$dmg" ]] || die "BaseSystem.dmg not found after download"
+        log "  Converting $dmg -> $RECOVERY_IMG"
+        dmg2img -i "$dmg" -o "$RECOVERY_IMG" || die "dmg2img conversion failed"
+    fi
+
+    qm status "$VMID" &>/dev/null || die "VM $VMID does not exist — run the installer first."
+
+    if qm status "$VMID" | grep -q running; then
+        log "  Stopping VM $VMID to attach installer..."
+        qm stop "$VMID"; sleep 3
+    fi
+
+    # Drop any dangling unused disk references (e.g. a previously deleted installer).
+    local u
+    for u in $(qm config "$VMID" | grep -oE '^unused[0-9]+' || true); do
+        log "  Removing stale $u..."
+        qm set "$VMID" --delete "$u" || true
+    done
+
+    if qm config "$VMID" | grep -qE '^ide2:'; then
+        log "  Installer already attached on ide2."
+    else
+        log "  Importing installer image into $STORAGE..."
+        qm importdisk "$VMID" "$RECOVERY_IMG" "$STORAGE"
+        local volid
+        volid="$(qm config "$VMID" | grep -E '^unused[0-9]+:' | head -1 | awk '{print $2}')"
+        [[ -n "$volid" ]] || die "Could not find imported installer disk"
+        log "  Attaching $volid as ide2..."
+        qm set "$VMID" --ide2 "${volid},media=disk"
+    fi
+
+    # Boot order: OpenCore (ide0) -> installer (ide2) -> macOS target (virtio0)
+    qm set "$VMID" --boot order='ide0;ide2;virtio0'
+    qm start "$VMID"
+
+    log ""
+    log "Installer staged. In noVNC: pick 'macOS Base System' ->"
+    log "  Disk Utility -> Show All Devices -> erase the 160G VirtIO disk (APFS/GUID)"
+    log "  -> Reinstall macOS Tahoe."
+}
+
 nuke_stale() {
     [[ -d "$REPO_DIR" ]] && { log "Removing stale install..."; rm -rf "$REPO_DIR"; }
 }
@@ -234,6 +311,9 @@ main() {
     case "${1:-}" in
         --enable-gpu)
             enable_gpu_passthrough
+            ;;
+        --stage-installer)
+            stage_recovery_installer
             ;;
         *)
             require_root
