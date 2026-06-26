@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxmox macOS Tahoe (VM 555) Lab Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Material Icons & Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+        }
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+        .scrollbar-custom::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-custom::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        .scrollbar-custom::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-6 gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="material-icons text-indigo-400 text-3xl">dns</span>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Tiamat macOS VM 555 Console</h1>
+                </div>
+                <p class="text-slate-400 mt-1">Deploying macOS Tahoe (v26) • Host: AMD Ryzen 5 3600</p>
+            </div>
+            <div class="flex flex-wrap gap-2 items-center">
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300">
+                    <span class="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-pulse"></span>
+                    <span>Target ID: <strong>555</strong></span>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-emerald-400">
+                    <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+                    <span>103 Purged & Migrated</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Specs Row (Vetted VM 555 Hardware Profile) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
+                <div class="p-3 bg-indigo-500/10 rounded-lg text-indigo-400">
+                    <span class="material-icons">storage</span>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium">SSD Target Disk</div>
+                    <div class="text-sm font-semibold text-slate-200">local-ssd (cache=none)</div>
+                    <div class="text-[10px] text-indigo-300 font-mono">No More Corruption</div>
+                </div>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
+                <div class="p-3 bg-cyan-500/10 rounded-lg text-cyan-400">
+                    <span class="material-icons">mouse</span>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium">USB Input Engine</div>
+                    <div class="text-sm font-semibold text-slate-200">EHCI + USB2 Mouse</div>
+                    <div class="text-[10px] text-cyan-300 font-mono">tablet: 0 (No HID Panic)</div>
+                </div>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
+                <div class="p-3 bg-amber-500/10 rounded-lg text-amber-400">
+                    <span class="material-icons">settings_ethernet</span>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium">Network Adapter</div>
+                    <div class="text-sm font-semibold text-slate-200">e1000-82545em</div>
+                    <div class="text-[10px] text-amber-300 font-mono">macOS Native Built-In</div>
+                </div>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
+                <div class="p-3 bg-purple-500/10 rounded-lg text-purple-400">
+                    <span class="material-icons">co_present</span>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium">SMBIOS Profile</div>
+                    <div class="text-sm font-semibold text-slate-200">MacPro7,1 (4C / 16GB)</div>
+                    <div class="text-[10px] text-purple-300 font-mono">vga: vmware (noVNC Ready)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Interactive Visualizer Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel: Interactive Console States -->
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col h-[580px]">
+                <div class="bg-slate-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                        <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                        <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                        <span class="text-xs font-semibold text-slate-400 ml-2">QEMU (macos-tahoe-555) - noVNC Active Console</span>
+                    </div>
+                    <div class="text-xs text-slate-500 font-mono">192.168.12.242:8006</div>
+                </div>
+
+                <!-- Display Screens Simulator -->
+                <div class="flex-1 bg-black flex flex-col items-center justify-center p-6 relative select-none overflow-hidden">
+
+                    <!-- Screen 1: Recovery Selection / OpenCore -->
+                    <div id="screen-opencore" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-8 space-y-6">
+                        <div class="flex items-center gap-4">
+                            <span class="material-icons text-indigo-400 text-5xl">memory</span>
+                            <div class="text-left">
+                                <h3 class="text-white font-mono text-base font-bold">OpenCore Boot Picker (v21)</h3>
+                                <p class="text-xs text-slate-400 font-mono">MacPro7,1 / CPU: Cascadelake-Server</p>
+                            </div>
+                        </div>
+                        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg overflow-hidden font-mono text-xs">
+                            <div class="px-3 py-2 bg-slate-950 border-b border-slate-800/60 text-slate-500 font-bold">Choose Boot Volume:</div>
+                            <div class="p-2 space-y-1">
+                                <div class="px-3 py-1.5 bg-indigo-950/40 text-indigo-300 rounded border border-indigo-500/20 flex items-center justify-between">
+                                    <span>1. macOS Base System (External / Recovery)</span>
+                                    <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold uppercase">Primary</span>
+                                </div>
+                                <div class="px-3 py-1.5 text-slate-500 flex items-center justify-between">
+                                    <span>2. Macintosh HD (Empty Disk Group Target)</span>
+                                    <span class="text-[10px] text-slate-600">Unformatted</span>
+                                </div>
+                                <div class="px-3 py-1.5 text-slate-500">
+                                    <span>3. Reset NVRAM</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-500 animate-pulse font-mono">Highlight "macOS Base System" and press Enter to boot installer</p>
+                    </div>
+
+                    <!-- Screen 2: Disk Utility Partitioning -->
+                    <div id="screen-diskutil" class="absolute inset-0 bg-slate-950 flex flex-col hidden">
+                        <div class="bg-slate-900 px-4 py-2 border-b border-slate-800 flex items-center justify-between text-xs font-mono">
+                            <span class="text-slate-400 font-semibold">Disk Utility (Base System Recovery)</span>
+                            <div class="flex gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/60"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></span>
+                            </div>
+                        </div>
+                        <div class="flex-1 grid grid-cols-4 bg-slate-950 font-sans text-xs">
+                            <!-- Sidebar -->
+                            <div class="border-r border-slate-900 bg-slate-900/20 p-3 space-y-3">
+                                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Internal Devices</div>
+                                <div class="space-y-1">
+                                    <div class="p-1.5 bg-indigo-500/10 text-indigo-400 rounded flex items-center gap-1.5 font-medium">
+                                        <span class="material-icons text-sm">storage</span>
+                                        <span class="truncate">QEMU HARDDISK (160GB)</span>
+                                    </div>
+                                    <div class="p-1.5 text-slate-400 flex items-center gap-1.5">
+                                        <span class="material-icons text-sm font-light">album</span>
+                                        <span class="truncate">macOS Base System</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Format Window -->
+                            <div class="col-span-3 p-4 flex flex-col justify-between">
+                                <div class="space-y-4">
+                                    <div class="flex items-start justify-between border-b border-slate-900 pb-3">
+                                        <div>
+                                            <h4 class="text-sm font-semibold text-slate-200">Erase "QEMU HARDDISK Media"</h4>
+                                            <p class="text-xs text-slate-400 mt-0.5">Prepare the physical virtual SSD space for Tahoe</p>
+                                        </div>
+                                        <span class="material-icons text-slate-500">settings_backup_restore</span>
+                                    </div>
+                                    <div class="space-y-3 max-w-sm">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-slate-400 font-medium">Name:</span>
+                                            <input type="text" readonly value="Macintosh HD" class="bg-slate-900 border border-slate-800 text-slate-200 px-2 py-1 rounded w-44 font-mono text-center">
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-slate-400 font-medium">Format:</span>
+                                            <span class="bg-slate-900 border border-slate-800 text-slate-200 px-2 py-1 rounded w-44 font-mono text-center block">APFS</span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-slate-400 font-medium">Scheme:</span>
+                                            <span class="bg-slate-900 border border-slate-800 text-slate-200 px-2 py-1 rounded w-44 font-mono text-center block">GUID Partition Map</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-indigo-950/20 border border-indigo-500/20 rounded p-2.5 text-[10px] text-indigo-300 flex gap-2 items-center">
+                                    <span class="material-icons text-sm text-indigo-400">info_outline</span>
+                                    <span>Ensure 'Show All Devices' is ticked in the View dropdown menu to target root disk.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Screen 3: OS Installation Progress -->
+                    <div id="screen-installing" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-6 hidden">
+                        <div class="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300">
+                            <span class="material-icons text-3xl">download_for_offline</span>
+                        </div>
+                        <div class="text-center space-y-1">
+                            <h3 class="text-sm font-semibold text-white">Installing macOS Tahoe (v26)</h3>
+                            <p class="text-xs text-slate-500 font-mono">Writing payloads to Macintosh HD (SSD Volume)</p>
+                        </div>
+                        <div class="w-64 space-y-1.5">
+                            <div class="h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                                <div class="h-full bg-indigo-500 rounded-full" style="width: 45%;"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                                <span>Copying files...</span>
+                                <span>About 24 minutes remaining</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Screen 4: APFS Sealing (Critically Protected State) -->
+                    <div id="screen-sealing" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 space-y-4 hidden">
+                        <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full flex items-center justify-center animate-pulse">
+                            <span class="material-icons text-3xl">lock</span>
+                        </div>
+                        <h3 class="text-sm font-semibold text-amber-400 font-mono uppercase tracking-wider">APFS Sealing Sequence In Progress</h3>
+                        <p class="text-xs text-slate-400 max-w-md text-center leading-relaxed font-mono">
+                            Status: <span class="text-amber-300 font-bold">"Less than a minute remaining"</span>
+                        </p>
+                        <div class="bg-red-950/30 border border-red-800/50 rounded-xl p-4 max-w-md space-y-2">
+                            <div class="flex items-center gap-2 text-rose-400 font-bold text-xs">
+                                <span class="material-icons text-sm">warning</span>
+                                <span>CRITICAL HARD RULE</span>
+                            </div>
+                            <p class="text-[11px] text-rose-300 leading-relaxed font-sans">
+                                DO NOT reset, restart, or force-stop the VM. The installer is cryptographic-sealing system volume snapshots on the SSD. Forcing a shutdown will result in metadata corruption and loop-panics. Let it finish natively (90+ minutes).
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Screen 5: Installed & Setup Complete -->
+                    <div id="screen-complete" class="absolute inset-0 bg-gradient-to-tr from-slate-950 via-indigo-950/40 to-slate-950 flex flex-col items-center justify-center text-center p-6 hidden">
+                        <div class="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mb-3">
+                            <span class="material-icons text-3xl">check_circle</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">macOS Tahoe Desktop Booted</h3>
+                        <p class="text-xs text-slate-400 max-w-sm mt-1">
+                            VM 555 is sitting at the regional setup assistant. Input profiles successfully established.
+                        </p>
+                        <div class="mt-4 bg-slate-900 border border-slate-800 rounded-lg p-3 max-w-sm text-left space-y-1.5 text-[11px] font-mono text-slate-300">
+                            <div class="text-slate-500 font-bold uppercase tracking-wider text-[9px] mb-1">Post-Install Steps Complete</div>
+                            <div>✓ OpenCore EFI copied to target disk</div>
+                            <div>✓ e1000 native interface online</div>
+                            <div>✓ NoMachine host registered</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Controllers -->
+                <div class="bg-slate-950 p-4 border-t border-slate-800 grid grid-cols-5 gap-2">
+                    <button onclick="changeScreen('opencore')" id="btn-opencore" class="px-2 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-[10px] font-semibold text-slate-300 transition-colors ring-2 ring-indigo-500">
+                        1. Recovery Boot
+                    </button>
+                    <button onclick="changeScreen('diskutil')" id="btn-diskutil" class="px-2 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-[10px] font-semibold text-slate-300 transition-colors">
+                        2. Disk Utility
+                    </button>
+                    <button onclick="changeScreen('installing')" id="btn-installing" class="px-2 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-[10px] font-semibold text-slate-300 transition-colors">
+                        3. OS Install
+                    </button>
+                    <button onclick="changeScreen('sealing')" id="btn-sealing" class="px-2 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-[10px] font-semibold text-slate-300 transition-colors">
+                        4. APFS Seal ⚠️
+                    </button>
+                    <button onclick="changeScreen('complete')" id="btn-complete" class="px-2 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-[10px] font-semibold text-slate-300 transition-colors">
+                        5. Complete Desktop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Step-by-Step Interactive Guide & Verification Checklist -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between h-[580px] overflow-hidden">
+                <div class="flex-1 overflow-y-auto scrollbar-custom pr-1 space-y-5">
+                    <div>
+                        <span id="diagnostic-badge" class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border border-indigo-500/20">Phase 1 Status</span>
+                        <h2 id="diagnostic-title" class="text-lg font-bold text-white mt-1.5">1. Recovery Boot (noVNC)</h2>
+                        <p id="diagnostic-desc" class="text-xs text-slate-400 mt-2 leading-relaxed">
+                            Start the VM through Proxmox or the CLI. Access the noVNC Console, select <strong class="text-slate-200">macOS Base System</strong> in the OpenCore selector to boot up the macOS recovery payload.
+                        </p>
+                    </div>
+
+                    <!-- Checklist -->
+                    <div class="space-y-3 border-t border-slate-800 pt-4">
+                        <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Live Installation Steps</div>
+                        <div id="checklist-container" class="space-y-2 text-xs">
+                            <!-- Dynamic checklist depending on phase -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-800 pt-4 mt-4">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <div class="flex items-center gap-1">
+                            <span class="material-icons text-sm text-indigo-400">info</span>
+                            <span>VM 555 is locked in non-passthrough staging mode.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post-Install Command Reference & Execution Guide -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                <span class="material-icons text-indigo-400">integration_instructions</span>
+                Post-Install Phase Command Toolbox
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Box 1 -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border border-indigo-500/20">EFI Transfer</span>
+                            <span class="material-icons text-slate-600">copy_all</span>
+                        </div>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-2">Bake OpenCore to Target Disk</h4>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Once inside macOS Tahoe, mount the OpenCore EFI release partition and clone it directly to your Macintosh HD SSD EFI slice. This lets VM 555 boot autonomously.
+                        </p>
+                    </div>
+                    <div class="mt-4 bg-slate-900 p-2.5 rounded border border-slate-800/80">
+                        <code class="text-[10px] code-font text-slate-300 block overflow-x-auto whitespace-pre">cp -R /Volumes/LongQT-OpenCore/EFI_RELEASE/EFI /Volumes/EFI/</code>
+                    </div>
+                </div>
+
+                <!-- Box 2 -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border border-amber-500/20">Phase 3 Ready</span>
+                            <span class="material-icons text-slate-600">settings_input_hdmi</span>
+                        </div>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-2">Enable Accelerated GPU Passthrough</h4>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Run your custom deployer script with the GPU flag on the Proxmox shell. This re-configures the QEMU target, binds the RX 580 cleanly, and switches the display driver profile.
+                        </p>
+                    </div>
+                    <div class="mt-4 bg-slate-900 p-2.5 rounded border border-slate-800/80">
+                        <code class="text-[10px] code-font text-slate-300 block overflow-x-auto whitespace-pre">bash install-macos-tahoe-tiamat.sh --enable-gpu</code>
+                    </div>
+                </div>
+
+                <!-- Box 3 -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[10px] font-mono uppercase tracking-wider font-semibold border border-emerald-500/20">Idempotency</span>
+                            <span class="material-icons text-slate-600">verified_user</span>
+                        </div>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-2">Idempotent Configuration Sync</h4>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Running the automation pipeline again will not erase or reset VM 555's active disks. It updates host parameters, input mappings, and hardware overrides cleanly.
+                        </p>
+                    </div>
+                    <div class="mt-4 bg-slate-900 p-2.5 rounded border border-slate-800/80 text-center">
+                        <span class="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">No Data Overwrite Risk</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const screens = {
+            opencore: {
+                title: "1. Recovery Boot (noVNC)",
+                badge: "Phase 1 Initiated",
+                badgeStyle: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
+                desc: "Launch your web browser console to monitor the boot execution. Select **macOS Base System** in the OpenCore selector to launch into the diagnostic and setup framework.",
+                checklist: [
+                    { text: "Log in to the Proxmox Host web shell or Web GUI.", done: true },
+                    { text: "Launch VM 555 and immediately open noVNC Console.", done: false },
+                    { text: "Select <strong>macOS Base System</strong> and boot.", done: false }
+                ]
+            },
+            diskutil: {
+                title: "2. Disk Utility formatting",
+                badge: "SSD Target Initialization",
+                badgeStyle: "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20",
+                desc: "Once booted into recovery, select Disk Utility. Toggle the view dropdown menu to **Show All Devices**. Erase the raw **160 GB QEMU HARDDISK** (not the installer volume partition).",
+                checklist: [
+                    { text: "Click <strong>View -> Show All Devices</strong> inside Disk Utility.", done: false },
+                    { text: "Select 160 GB QEMU HARDDISK root media target.", done: false },
+                    { text: "Erase using: Name: <strong>Macintosh HD</strong>, Format: <strong>APFS</strong>, Scheme: <strong>GUID Partition Map</strong>.", done: false },
+                    { text: "Erase confirmation complete. Quit Disk Utility.", done: false }
+                ]
+            },
+            installing: {
+                title: "3. macOS Tahoe Installation Cycle",
+                badge: "Disk Write In Progress",
+                badgeStyle: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                desc: "Select **Reinstall macOS Tahoe** from the recovery menu. Choose your freshly formatted **Macintosh HD** volume as the target and let the system write installer assets to the SSD.",
+                checklist: [
+                    { text: "Launch 'Reinstall macOS Tahoe' from the menu.", done: false },
+                    { text: "Target the newly formatted <strong>Macintosh HD</strong> SSD.", done: false },
+                    { text: "Let the installation download and copy files (it will reboot 2-3x automatically).", done: false },
+                    { text: "At each boot picker, ensure the system highlights the active installation.", done: false }
+                ]
+            },
+            sealing: {
+                title: "4. APFS Volume Sealing Phase",
+                badge: "Cryptographic Locking Stage",
+                badgeStyle: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
+                desc: "The installer reaches its finalization phase, often remaining stuck on **'Less than a minute remaining...'** for up to two hours. macOS Tahoe is performing core sealing configurations.",
+                checklist: [
+                    { text: "Wait patiently (up to 90+ minutes). Do not interact.", done: false },
+                    { text: "⚠️ <strong>WARNING:</strong> Absolutely DO NOT force-reboot or stop the VM.", done: false },
+                    { text: "Let VM 555 finalize, write system tables, and reboot on its own.", done: false }
+                ]
+            },
+            complete: {
+                title: "5. Setup Complete (Landed on Desktop)",
+                badge: "VM Deployment Successful",
+                badgeStyle: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+                desc: "The system is fully booted and waiting for you on the Setup Assistant country selection screen. You can proceed to complete your post-install task lists.",
+                checklist: [
+                    { text: "Go through the initial macOS Tahoe region and configuration wizard.", done: false },
+                    { text: "Mount EFI volume and copy your OpenCore folder to target disk.", done: false },
+                    { text: "Install and configure NoMachine / SSH client.", done: false },
+                    { text: "Enable GPU passthrough using your shell automation tool.", done: false }
+                ]
+            }
+        };
+
+        function changeScreen(screenKey) {
+            // Hide all screens
+            document.getElementById('screen-opencore').classList.add('hidden');
+            document.getElementById('screen-diskutil').classList.add('hidden');
+            document.getElementById('screen-installing').classList.add('hidden');
+            document.getElementById('screen-sealing').classList.add('hidden');
+            document.getElementById('screen-complete').classList.add('hidden');
+
+            // Show selected screen
+            document.getElementById(`screen-${screenKey}`).classList.remove('hidden');
+
+            // Remove highlight ring from buttons
+            document.getElementById('btn-opencore').classList.remove('ring-2', 'ring-indigo-500');
+            document.getElementById('btn-diskutil').classList.remove('ring-2', 'ring-indigo-500');
+            document.getElementById('btn-installing').classList.remove('ring-2', 'ring-indigo-500');
+            document.getElementById('btn-sealing').classList.remove('ring-2', 'ring-indigo-500');
+            document.getElementById('btn-complete').classList.remove('ring-2', 'ring-indigo-500');
+
+            // Add ring to selected button
+            document.getElementById(`btn-${screenKey}`).classList.add('ring-2', 'ring-indigo-500');
+
+            // Update details
+            const data = screens[screenKey];
+            document.getElementById('diagnostic-title').innerHTML = data.title;
+            document.getElementById('diagnostic-desc').innerHTML = data.desc;
+
+            // Update badge
+            const badge = document.getElementById('diagnostic-badge');
+            badge.className = `px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-semibold ${data.badgeStyle}`;
+            badge.innerText = data.badge;
+
+            // Update checklist
+            const container = document.getElementById('checklist-container');
+            container.innerHTML = '';
+            data.checklist.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex items-start gap-2 text-slate-300 leading-relaxed py-1';
+                div.innerHTML = `
+                    <span class="material-icons text-sm ${item.done ? 'text-emerald-500' : 'text-slate-600'} select-none mt-0.5">
+                        ${item.done ? 'check_box' : 'check_box_outline_blank'}
+                    </span>
+                    <span class="text-[11px]">${item.text}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Initialize state
+        changeScreen('opencore');
+    </script>
+</body>
+</html>
