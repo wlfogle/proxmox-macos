@@ -39,6 +39,9 @@ readonly LOG_DIR="$HOME/logs/updates"
 readonly LOG_FILE="$LOG_DIR/update_$(date +%Y-%m-%d_%H-%M).log"
 # Disk free threshold (MB) — clean apt cache if below this
 readonly DISK_WARN_MB=2048
+# CT backups to retain per container on hdd-ct
+readonly KEEP_CT_BACKUPS=1
+readonly CT_DUMP_DIR="/mnt/hdd/ct-storage/dump"
 
 # ── Feature flags (overridden by CLI args) ──────────────────────────────────
 DO_LAPTOP=true
@@ -206,6 +209,40 @@ update_laptop() {
 }
 
 # =============================================================================
+# TIAMAT HELPER: prune_backups — keep KEEP_CT_BACKUPS newest .tar.zst per CT
+# Runs on tiamat via base64-encoded bash (avoids fish heredoc issues)
+# =============================================================================
+prune_backups() {
+  local script
+  script=$(printf '%s\n' \
+    '#!/bin/bash' \
+    "DUMP=\"${CT_DUMP_DIR}\"" \
+    "KEEP=${KEEP_CT_BACKUPS}" \
+    'find "$DUMP" \( -name "*.tmp" -o -name "*.tar.dat" \) -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true' \
+    'for ctid in $(ls "$DUMP"/vzdump-lxc-*.tar.zst 2>/dev/null | grep -oP "vzdump-lxc-\K[0-9]+" | sort -u); do' \
+    '    mapfile -t bk < <(ls -t "$DUMP"/vzdump-lxc-${ctid}-*.tar.zst 2>/dev/null)' \
+    '    total=${#bk[@]}' \
+    '    echo "  CT-${ctid}: ${total} backup(s), keeping ${KEEP}"' \
+    '    for (( i=KEEP; i<total; i++ )); do' \
+    '        ts=$(basename "${bk[$i]}" | grep -oP "\d{4}_\d{2}_\d{2}-\d{2}_\d{2}_\d{2}")' \
+    '        echo "    Removing: $(basename ${bk[$i]})"' \
+    '        rm -f "$DUMP/vzdump-lxc-${ctid}-${ts}.tar.zst"' \
+    '        rm -f "$DUMP/vzdump-lxc-${ctid}-${ts}.tar.zst.notes"' \
+    '        rm -f "$DUMP/vzdump-lxc-${ctid}-${ts}.log"' \
+    '    done' \
+    'done' \
+    'echo "Dump dir after prune: $(du -sh $DUMP | cut -f1)"'
+  )
+  local encoded
+  encoded=$(echo "$script" | base64 -w0)
+  if [[ "$DRY_RUN" == true ]]; then
+    _log_raw "  ${DIM}[dry-run] prune_backups on $TIAMAT (keep $KEEP_CT_BACKUPS per CT)${NC}"
+  else
+    ssh -T "$TIAMAT" "echo ${encoded} | base64 -d | bash" 2>&1 | while IFS= read -r l; do info "  $l"; done
+  fi
+}
+
+# =============================================================================
 # 2. TIAMAT — Proxmox host + all LXCs (via BassT23 Ultimate Updater)
 # =============================================================================
 update_tiamat() {
@@ -236,6 +273,9 @@ update_tiamat() {
     warn "Updater error log (last 20 lines):"
     echo "$errors" | while IFS= read -r line; do warn "  $line"; done
   fi
+
+  subhead "Prune CT backups (keep $KEEP_CT_BACKUPS newest per CT)"
+  prune_backups
 
   RESULTS["tiamat"]="✅ done"
   log "tiamat update complete"
@@ -330,7 +370,7 @@ update_haos() {
 
   # NOTE: ha os update causes VM restart — require explicit flag
   local ha_os_ver
-  ha_os_ver=$(ssh -T "$TIAMAT" "qm guest exec $HAOS_VMID -- ha os info 2>&1" | grep "version_latest" | awk '{print $2}')
+  ha_os_ver=$(ssh -T "$TIAMAT" "qm guest exec $HAOS_VMID -- ha available-updates 2>&1" | grep -A1 'update_type: os' | grep 'version_latest' | grep -oP '[0-9.]+'  | head -1)
   if [[ -n "$ha_os_ver" ]]; then
     warn "HAOS OS update to v${ha_os_ver} available — run with --update-haos-os to apply (causes VM restart)"
   fi
